@@ -861,4 +861,148 @@ data$age <- gsub(" years", "", data$age)
 data$age <- gsub("-", " to ", data$age)
 
 visual_GBDrate_gender_pyramid(data,
+
                               descending = FALSE)
+
+# Health Inequality Analysis
+# Slope Index of Inequality (SII) and Concentration Index (CI)
+library(ineq)
+library(splines)
+
+# Load and prepare data for inequality analysis
+inequality_data <- read.csv('Glomerulonephritis-Induced Chronic Kidney Disease.csv')
+inequality_data <- prepare_inequality_data(inequality_data, SDI2021, GBD_popall_2021)
+
+# Calculate SII and CI
+sii_ci_results <- calculate_sii_ci(inequality_data,
+                                   years = c(1990, 2019),
+                                   health_measure = "DALYs")
+
+# Visualize inequality results
+sii_plot <- visualize_inequality(sii_ci_results,
+                                  title = "Health Inequality in GN-Induced CKD",
+                                  subtitle = "Global and China Trends (1990-2019)")
+
+# Age-Period-Cohort (APC) Analysis
+# Load and prepare data for APC analysis
+apc_data <- gbd_filter(data_all,
+                       measure == 'Deaths',
+                       rei == "All risk factors",
+                       !age %in% c('All ages', "Age-standardized"),
+                       location == 'Global')
+
+# Process data for APC analysis
+apc_data <- apc_data[order(apc_data$year, apc_data$age), ]
+apc_data$age <- as.factor(apc_data$age)
+
+# Perform APC analysis
+apc_results <- perform_apc_analysis(apc_data,
+                                    age_var = "age",
+                                    period_var = "year",
+                                    response_var = "val")
+
+# Visualize APC results
+apc_plot <- visualize_apc_results(apc_results,
+                                  title = "APC Effects on GN-Induced CKD Mortality",
+                                  x_lab = "Age Groups",
+                                  y_lab = "Mortality Rate")
+
+# Attributable Risk Analysis
+# Define risk factors for GN-Induced CKD
+risk_factors <- c("Diet high in processed meat",
+                  "Diet high in red meat",
+                  "Diet high in sodium",
+                  "Diet high in sugar-sweetened beverages",
+                  "Low fruit intake",
+                  "Low vegetable intake",
+                  "Low whole grains intake",
+                  "High BMI",
+                  "High fasting plasma glucose",
+                  "High systolic blood pressure",
+                  "Kidney dysfunction",
+                  "Lead exposure",
+                  "Low physical activity")
+
+# Load risk factor data
+risk_data <- gbd_filter(data_all,
+                        rei %in% risk_factors,
+                        measure == 'Deaths',
+                        age == 'Age-standardized',
+                        metric == 'Rate')
+
+# Calculate attributable risk
+attributable_risk <- calculate_attributable_risk(risk_data,
+                                                 population_size = GBD_popall_2021,
+                                                 health_outcome = "GN-Induced CKD")
+
+# Visualize risk factors
+risk_plot <- visualize_risk_factors(attributable_risk,
+                                    title = "Attributable Risk of GN-Induced CKD",
+                                    subtitle = "Global and China",
+                                    x_lab = "Risk Factors",
+                                    y_lab = "Attributable Burden")
+
+# Decomposition Analysis
+# Load and prepare data for decomposition
+decomposition_data <- gbd_filter(data_all,
+                                 measure == 'Deaths',
+                                 rei == "All risk factors",
+                                 location %in% c("Global", "China"))
+
+# Perform decomposition analysis
+decomposition_results <- perform_decomposition(decomposition_data,
+                                               start_year = 1990,
+                                               end_year = 2021,
+                                               drivers = c("Population Aging", "Population Growth", "Epidemiological Change"))
+
+# Visualize decomposition results
+decomposition_plot <- visualize_decomposition(decomposition_results,
+                                              title = "Decomposition of GN-Induced CKD Burden Change",
+                                              x_lab = "Time Period",
+                                              y_lab = "Contribution to Burden Change")
+
+# Bayesian Age-Period-Cohort (BAPC) Model for Projections
+# Prepare data for BAPC model
+bapc_data <- gbd_filter(data_all,
+                        measure == 'Deaths',
+                        rei == "All risk factors",
+                        location == 'China')
+
+bapc_data <- bapc_data[,-1]
+bapc_data <- bapc_data[,-6]
+
+# Define age groups and periods
+age_groups <- unique(bapc_data$age)
+periods <- seq(1990, 2021)
+
+# Run BAPC model
+bapc_model <- run_bapc_model(bapc_data,
+                             age_var = "age",
+                             period_var = "year",
+                             response_var = "val",
+                             forecast_years = 2022:2050)
+
+# Visualize projections
+projection_plot <- visualize_projections(bapc_model,
+                                         title = "Projected GN-Induced CKD Burden in China",
+                                         subtitle = "2021-2050",
+                                         x_lab = "Year",
+                                         y_lab = "Age-Standardized Rate")
+
+# Combine all plots into a comprehensive report
+library(gridExtra)
+
+# Arrange plots in a grid
+combined_plots <- grid.arrange(
+  sii_plot,
+  apc_plot,
+  risk_plot,
+  decomposition_plot,
+  projection_plot,
+  ncol = 2,
+  main = textGrob("Global and China Trends in Glomerulonephritis-Induced Chronic Kidney Disease",
+                  gp = gpar(fontsize = 18, fontface = "bold"))
+)
+
+# Save combined plots
+ggsave('GN-CKD_Global_and_China_Trends.png', combined_plots, width = 15, height = 10)
